@@ -41,11 +41,11 @@
 - [x] hardware-cross `ESP_CloseLib` (`0x80167224`) far enough to reach `NANDOpenAsync`; pinned no-op close and immediate-success semantics are active
 - [x] hardware-cross `NANDOpenAsync` (`0x8019C918`) far enough to reach `NANDReadAsync`; SD-backed open state and guest completion ABI are active
 - [x] hardware-cross `NANDReadAsync` (`0x8019B80C`) far enough to reach `NANDCloseAsync`; raw byte-count callback semantics and OK-zero async return are active
-- [x] capture/fix `NANDCloseAsync` (`0x8019CAEC`) with persistent-fd close state, closed guest openFlag and verbatim async return semantics
+- [x] hardware-cross `NANDCloseAsync` (`0x8019CAEC`) far enough to reach PAL `main`; persistent-fd close state, closed guest openFlag and verbatim async return semantics are active
+- [x] reach PAL Mario Kart Wii `main` (`0x8000B6B0`) on real Switch hardware after 605 translated dispatches
 - [ ] publish a real local DVD FST/data mapping before resource loading requires it
 - [ ] move NAND async completion draining from the fast-track HLE boundary to a verified alarm/IOS scheduling point if later hardware ordering requires it
-- [ ] reach PAL Mario Kart Wii `main` (`0x8000B6B0`)
-- [ ] identify and fix the first post-`main` runtime blocker
+- [ ] identify and fix the first post-`main` runtime blocker under #117
 - [ ] complete thread/mutex/condition-variable semantics required by the game
 - [ ] complete filesystem/NAND/DVD abstractions required by boot
 - [ ] replace remaining temporary runtime/HLE stubs with verified semantics
@@ -54,8 +54,9 @@ Hardware evidence is recorded in:
 
 - `docs/HARDWARE_RESULTS_2026-09-10.md`
 - `docs/HARDWARE_RESULTS_2026-09-12.md`
+- `docs/HARDWARE_RESULTS_2026-09-13_MAIN_REACHED.md`
 
-The current hardware-driven method is deliberate: execute the broadest safe translated startup path, stop on the first unsupported native/translated boundary or attributable exception, mirror the pinned WiiCompiled semantics, validate in Nintendo-data-free CI, then repeat on hardware.
+The current hardware-driven method remains deliberate after `main`: execute the broadest safe translated path, stop on the first unsupported native/translated boundary or attributable exception, mirror the pinned WiiCompiled semantics, validate in Nintendo-data-free CI, then repeat on hardware. Post-main bring-up is tracked in #117.
 
 ## M3 — graphics / first frame
 - [ ] Resolve shared upstream GX safety blockers before attributing failures to a Switch backend:
@@ -72,7 +73,7 @@ The current hardware-driven method is deliberate: execute the broadest safe tran
 
 The upstream GX audit behind issues #109–#112 is recorded in `docs/UPSTREAM_GX_AUDIT_2026-09-13.md`. These are shared decoder/runtime concerns and must be separated from Switch-backend-specific failures during M3.
 
-> Graphics is intentionally not considered validated while `GX_HLE_FIFO_Write*` remains a sink. A black screen during the M2 fast-track is therefore not proof of a graphics failure.
+> Graphics is intentionally not considered validated while `GX_HLE_FIFO_Write*` remains a sink. A black screen during the fast-track is therefore not proof of a graphics failure.
 
 ## M4 — input + audio
 - [ ] Map Joy-Con / Pro Controller to WiiCompiled input
@@ -83,7 +84,8 @@ The upstream GX audit behind issues #109–#112 is recorded in `docs/UPSTREAM_GX
 ## M5 — first game boot / playable offline path
 - [x] User-owned local translation/build pipeline exists
 - [x] enter translated Mario Kart Wii startup on real Switch hardware
-- [ ] reach game `main()`
+- [x] reach game `main()` on real Switch hardware
+- [ ] capture and fix the first post-main blocker (#117)
 - [ ] complete game/resource initialization
 - [ ] menus
 - [ ] offline time trial

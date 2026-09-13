@@ -1,6 +1,6 @@
-# Hardware results — 2026-09-12
+# Hardware results — 2026-09-12 / 2026-09-13
 
-This document records the real Nintendo Switch evidence for the M2 translated-startup fast-track on 2026-09-12.
+This document records the real Nintendo Switch evidence for the M2 translated-startup fast-track begun on 2026-09-12 and continued on 2026-09-13.
 
 Upstream WiiCompiled pin: `a135beb201042b20f390c6695ca6b26768820fb4`.
 
@@ -23,7 +23,8 @@ Real hardware confirms that the local NRO can:
 - execute through multiple Wii SDK/native runtime boundaries;
 - execute a mixed native-HLE → translated call path (`IPCCltInit` → `IPCInit`);
 - preserve required guest SDA bookkeeping through host HLE (`__OSInitSTM`);
-- initialize NAND/ISFS host+guest state through `NANDInit` and advance to the first asynchronous NAND open boundary;
+- initialize NAND/ISFS host+guest state through `NANDInit`;
+- cross the current `NANDPrivateOpenAsync` bridge far enough to reach `SCCheckStatus`;
 - emit durable unsupported-dispatch and host-exception diagnostics to SD.
 
 The screen remains black because the current GX FIFO bridge is deliberately a sink. No rendered Mario Kart Wii frame has been proven.
@@ -143,7 +144,7 @@ Pinned WiiCompiled maps `0x80193478` to `IPCCltInit`.
 
 Its HLE is not a simple success stub. It:
 
-1. calls translated `IPCInit` at `0x80192F7C` so the IPC buffer globals are initialized;
+1. calls translated `IPCInit` at `0x80192F7C` so IPC buffer globals are initialized;
 2. reads the r13-relative IPC buffer-low global;
 3. advances that pointer by `0x1000` for the IOS heap;
 4. skips the Wii-specific interrupt handler/MMIO portion;
@@ -248,7 +249,7 @@ Pinned WiiCompiled maps this address to `NANDPrivateOpenAsync_HLE`. This boundar
 
 Switch fix: add a persistent SD-backed NAND open runtime below the existing `nand_root()`. Wii guest paths are normalized, backslashes are converted, relative paths resolve below the title data directory, and `.`/`..` traversal is clamped at the NAND root. Modes 1/2/3 map to host read/read-write opens. Successful opens allocate a persistent fd beginning at 100, write the fd into guest `NANDFileInfo`, and set `openFlag = 1` at offset `0x8A`. The boundary preserves the relevant result family (`0`, `-8`, `-12`, `-64`).
 
-The completion callback receives `r3 = result` and `r4 = commandBlock` on a scratch `CpuContext`, preventing callback register mutations from corrupting the interrupted translated caller. The current fast-track queues then drains the callback before the HLE returns; unlike pinned WiiCompiled, it does not yet delay delivery to the later alarm/IOS pump. This is an explicit scheduling approximation to be validated on hardware, not a claim of timing equivalence.
+The completion callback receives `r3 = result` and `r4 = commandBlock` on a scratch `CpuContext`, preventing callback register mutations from corrupting the interrupted translated caller. The current fast-track queues then drains the callback before the HLE returns; unlike pinned WiiCompiled, it does not yet delay delivery to the later alarm/IOS pump. This is an explicit scheduling approximation, not a claim of timing equivalence.
 
 PR: #93
 
@@ -256,7 +257,34 @@ The first PR head exposed only integration issues in CI: `clang-format` formatti
 
 Merge commit: `5c5cc83f85837396a1ac8db8e80ada16d71ccd97`.
 
-Current status: `NANDPrivateOpenAsync` is the latest hardware-captured blocker fixed in `main`. A post-#93 hardware run is required to prove that the current callback scheduling advances boot, expose any ordering/reentrancy issue, identify the next boundary, or prove PAL `main()`.
+Result after fix: real hardware advanced beyond `NANDPrivateOpenAsync` and captured `SCCheckStatus` at `0x801B0220`. This proves that the current immediate callback delivery does not block the startup path up to that point. It does not prove exact timing equivalence with the later upstream alarm/IOS pump.
+
+### 9. `SCCheckStatus` — `0x801B0220`
+
+Captured blocker:
+
+```text
+kind                  : DIRECT
+target                : 0x801b0220
+guest pc              : 0x800060a4
+r1                    : 0x80399168
+r2                    : 0x8038efa0
+r3                    : 0xfffffff4
+r13                   : 0x8038cc00
+fast-track stage      : TRANSLATED_EXEC_ENTER
+```
+
+Pinned WiiCompiled maps this address to `SCCheckStatus` and native-overrides it. Wii `OSInit` polls the function while asynchronous SYSCONF loading is outstanding. Because the host path does not service the corresponding Wii NAND/IOS completion loop here, the pinned HLE returns `0` (`SC_STATUS_OK`) immediately to prevent an infinite busy loop.
+
+Switch fix: mirror the same leaf semantics by writing `r3 = 0` and performing no Wii IOS access. The captured incoming `r3 = 0xFFFFFFF4` (`-12`) is prior state from the preceding NAND path; it is not the expected `SCCheckStatus` result.
+
+PR: #95
+
+Nintendo-data-free coverage seeds the observed `-12` sentinel and dispatches `InvokeDirectCpu<0x801B0220>`. All 5 workflows passed before merge: lint, fast-track-startup, bootstrap-register-prelude, stateful-translated-sequence, and build-switch.
+
+Merge commit: `987d787fef6b4bceb1dfec436c9e34bba5f3f61e`.
+
+Current status: `SCCheckStatus` is the latest hardware-captured blocker fixed in `main`. A post-#95 hardware run is required to prove progress beyond it, identify the next boundary/stall, or prove PAL `main()`.
 
 ## Diagnostic-path issue discovered during hardware testing
 
@@ -305,7 +333,7 @@ The local fast-track may create:
 
 ## Current interpretation
 
-The 2026-09-12 evidence proves real translated startup progress well beyond the original runtime bootstrap and metadata-only product boundary.
+The 2026-09-12/13 evidence proves real translated startup progress well beyond the original runtime bootstrap and metadata-only product boundary.
 
 Specifically, hardware has now proven that:
 
@@ -316,11 +344,13 @@ Specifically, hardware has now proven that:
 - native HLE may legitimately call translated guest code and must preserve that dependency;
 - hardware-facing host HLE may skip Wii I/O while still publishing mandatory guest SDA state;
 - storage HLE requires both host filesystem effects and guest path/state publication;
-- `NANDInit` now advances far enough to reach the first concrete async file-open boundary.
+- the current `NANDPrivateOpenAsync` implementation advances on hardware far enough to reach `SCCheckStatus`;
+- the remaining boot still includes host-collapsed async status boundaries before PAL `main()`.
 
 It does **not** prove:
 
-- that the new `NANDPrivateOpenAsync` scheduling approximation has advanced on hardware yet;
+- exact timing equivalence for the `NANDPrivateOpenAsync` completion scheduler;
+- progress beyond the newly fixed `SCCheckStatus` boundary yet;
 - entry into PAL `main()`;
 - game/resource initialization completion;
 - a working GX renderer;
@@ -329,9 +359,9 @@ It does **not** prove:
 
 The next real-hardware run should be classified as one of:
 
-1. a new `fast-track-dispatch-blocker.txt` — current callback delivery worked well enough to continue; map/fix the next pinned runtime boundary;
-2. a `fast-track-exception.txt` — use stage + FAR/registers + guest context to attribute the failure, including possible callback ordering/reentrancy;
-3. a heartbeat with no blocker — investigate a non-crashing loop/stall and whether delayed NAND completion is required;
+1. a new `fast-track-dispatch-blocker.txt` — `SCCheckStatus` worked and startup continued; map/fix the next pinned runtime boundary;
+2. a `fast-track-exception.txt` — use stage + FAR/registers + guest context to attribute the failure;
+3. a heartbeat with no blocker — investigate a non-crashing loop/stall, including any later ordering-sensitive async completion;
 4. `fast-track-main-reached.txt` — declare the PAL `main()` milestone reached and move to the first post-`main` blocker.
 
 ## Build command used for the local fast-track

@@ -63,7 +63,9 @@ DVDInit
   ↓
 DVDLowClearCoverInterrupt
   ↓
-DVDLowInquiry                ← latest hardware blocker fixed in main
+DVDLowInquiry
+  ↓
+ESP_InitLib                  ← latest hardware blocker fixed in main
   ↓
 remaining early OS/runtime boundaries
   ↓
@@ -97,7 +99,8 @@ The hardware-driven guest blocker sequence has now captured and fixed:
 - `SCCheckStatus` (`0x801B0220`);
 - `DVDInit` (`0x8015EA1C`);
 - `DVDLowClearCoverInterrupt` (`0x80166964`);
-- `DVDLowInquiry` (`0x80165A30`).
+- `DVDLowInquiry` (`0x80165A30`);
+- `ESP_InitLib` (`0x801671D0`).
 
 `DCZeroRange` exposed an important Switch-runtime contract mismatch: pinned WiiCompiled catches an invalid guest-memory access, while the Switch `Memory::GetPointer` slice returns `nullptr`. A hardware call with `r3 = 0xFFFFFFFF` aligned to `0xFFFFFFE0`, and the old HLE called `memset(nullptr, 0, 0x20)`. The Switch HLE now checks the returned guest pointer before entering libc while preserving valid-range zeroing and the GX/DMA notification seam.
 
@@ -115,7 +118,9 @@ The hardware-driven guest blocker sequence has now captured and fixed:
 
 `DVDLowClearCoverInterrupt` (`0x80166964`) is native-overridden by pinned WiiCompiled to ignore the callback argument and immediately return `1`. The Switch HLE mirrors that leaf behavior without guest-memory writes or physical DVD access. A subsequent real-hardware run advanced beyond this boundary and captured `DVDLowInquiry`, validating the current cover-interrupt fast-track behavior.
 
-`DVDLowInquiry` (`0x80165A30`) is the latest hardware-captured `DIRECT` blocker. Pinned WiiCompiled acknowledges that the drive is present, marks the supplied DVD command block complete by writing `DVD_STATE_END` (`0`) at offset `+0x0C`, completes the shared DVD cancel/reset bookkeeping, ignores the callback argument, and returns `1`. The Switch HLE mirrors those guest-visible semantics and reuses the existing cancel-state helper. The fix is CI-valid and merged; a post-fix hardware run is still required to prove the next advance.
+`DVDLowInquiry` (`0x80165A30`) acknowledges that the drive is present, marks the supplied DVD command block complete by writing `DVD_STATE_END` (`0`) at offset `+0x0C`, completes the shared DVD cancel/reset bookkeeping, ignores the callback argument, and returns `1`. The Switch HLE mirrors those guest-visible semantics and reuses the existing cancel-state helper. A subsequent real-hardware run advanced beyond this boundary and captured `ESP_InitLib`, validating the current inquiry fast-track behavior.
+
+`ESP_InitLib` (`0x801671D0`) is the latest hardware-captured `DIRECT` blocker. Pinned WiiCompiled deliberately does not open Wii `/dev/es` on the host and returns `0` immediately. The Switch HLE mirrors that exact leaf behavior with no guest-memory writes, IOS handle, or callback side effects. The fix is CI-valid and merged; a post-fix hardware run is still required to prove the next advance.
 
 An earlier hardware run exposed a separate **pre-guest host crash** during `MAIN_PLATFORM_INIT`: no guest context was active, GuestFlat was not initialized, and the fault register state matched an 8 MiB host memory clear in the libnx PrintConsole/NV path. The M2 local fast-track therefore starts **headless** and relies on SD diagnostics until a real GX backend exists. Subsequent hardware runs have confirmed that this headless path reaches `TRANSLATED_EXEC_ENTER` with an active guest context.
 

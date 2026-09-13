@@ -14,6 +14,8 @@ std::int32_t ReadSync(std::uint32_t fileInfoPtr,
                       std::uint32_t bufferPtr,
                       std::uint32_t length) noexcept;
 
+std::int32_t CloseSync(std::uint32_t fileInfoPtr) noexcept;
+
 void QueueCallback(std::uint32_t callbackPtr,
                    std::int32_t result,
                    std::uint32_t commandBlockPtr) noexcept;

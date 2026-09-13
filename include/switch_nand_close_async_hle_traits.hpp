@@ -1,0 +1,29 @@
+#pragma once
+
+#include "abi_bridge.h"
+#include "switch_nand_runtime.hpp"
+
+#include <cstdint>
+
+// NANDCloseAsync (PAL 0x8019CAEC). Pinned WiiCompiled forwards to synchronous
+// NANDClose, queues the guest completion callback as (result, commandBlock),
+// and returns that synchronous result verbatim.
+template <>
+struct KnownNativeCpuCall<0x8019CAECu> {
+    static constexpr bool kAvailable = true;
+
+    static inline void Invoke(CpuContext* cpu) noexcept {
+        if (!cpu) {
+            return;
+        }
+
+        const std::uint32_t fileInfoPtr = cpu->gpr[3];
+        const std::uint32_t callbackPtr = cpu->gpr[4];
+        const std::uint32_t commandBlockPtr = cpu->gpr[5];
+
+        const std::int32_t result = mkw::switch_nand_runtime::CloseSync(fileInfoPtr);
+        mkw::switch_nand_runtime::QueueCallback(callbackPtr, result, commandBlockPtr);
+        cpu->gpr[3] = static_cast<std::uint32_t>(result);
+        mkw::switch_nand_runtime::PumpCallbacks(cpu);
+    }
+};

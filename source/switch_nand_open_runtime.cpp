@@ -195,4 +195,33 @@ std::int32_t ReadSync(std::uint32_t fileInfoPtr,
     }
 }
 
+std::int32_t CloseSync(std::uint32_t fileInfoPtr) noexcept {
+    if (fileInfoPtr == 0u || !Memory::Contains(fileInfoPtr, kOpenFlagOffset + 1u)) {
+        return kResultInvalid;
+    }
+
+    try {
+        if (Memory::Read8(fileInfoPtr + static_cast<std::uint32_t>(kOpenFlagOffset)) != 1u) {
+            return kResultInvalid;
+        }
+
+        const std::int32_t fd = static_cast<std::int32_t>(Memory::Read32(fileInfoPtr));
+        {
+            std::lock_guard<std::mutex> lock(g_fileMutex);
+            const auto it = g_fileHandles.find(fd);
+            if (it != g_fileHandles.end()) {
+                if (it->second.file && std::fclose(it->second.file) != 0) {
+                    return kResultUnknown;
+                }
+                g_fileHandles.erase(it);
+            }
+        }
+
+        Memory::Write8(fileInfoPtr + static_cast<std::uint32_t>(kOpenFlagOffset), 0u);
+        return kResultOk;
+    } catch (...) {
+        return kResultInvalid;
+    }
+}
+
 } // namespace mkw::switch_nand_runtime

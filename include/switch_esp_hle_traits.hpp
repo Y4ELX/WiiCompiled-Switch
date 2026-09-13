@@ -15,3 +15,16 @@ struct KnownNativeCpuCall<0x801671D0u> {
         }
     }
 };
+
+// ESP_CloseLib (PAL 0x80167224). Pinned WiiCompiled has no host /dev/es handle
+// to release, so its native override is a no-op that reports success.
+template <>
+struct KnownNativeCpuCall<0x80167224u> {
+    static constexpr bool kAvailable = true;
+
+    static inline void Invoke(CpuContext* cpu) noexcept {
+        if (cpu) {
+            cpu->gpr[3] = 0u;
+        }
+    }
+};

@@ -39,7 +39,9 @@
 - [x] hardware-cross `DVDLowInquiry` (`0x80165A30`) far enough to reach `ESP_InitLib`; command-block completion and shared DVD cancel/reset bookkeeping are active
 - [x] hardware-cross `ESP_InitLib` (`0x801671D0`) far enough to reach `ESP_CloseLib`; pinned immediate-success semantics are active with no host `/dev/es` dependency
 - [x] hardware-cross `ESP_CloseLib` (`0x80167224`) far enough to reach `NANDOpenAsync`; pinned no-op close and immediate-success semantics are active
-- [x] capture/fix `NANDOpenAsync` (`0x8019C918`) with the existing SD-backed open state and guest completion ABI
+- [x] hardware-cross `NANDOpenAsync` (`0x8019C918`) far enough to reach `NANDReadAsync`; SD-backed open state and guest completion ABI are active
+- [x] hardware-cross `NANDReadAsync` (`0x8019B80C`) far enough to reach `NANDCloseAsync`; raw byte-count callback semantics and OK-zero async return are active
+- [x] capture/fix `NANDCloseAsync` (`0x8019CAEC`) with persistent-fd close state, closed guest openFlag and verbatim async return semantics
 - [ ] publish a real local DVD FST/data mapping before resource loading requires it
 - [ ] move NAND async completion draining from the fast-track HLE boundary to a verified alarm/IOS scheduling point if later hardware ordering requires it
 - [ ] reach PAL Mario Kart Wii `main` (`0x8000B6B0`)

@@ -33,7 +33,9 @@
 - [x] hardware-cross `__OSInitSTM` (`0x801AB848`) with guest SDA state and fake STM handles
 - [x] hardware-cross `NANDInit` (`0x8019E18C`) with SD-backed NAND root and guest home/init state
 - [x] hardware-cross `NANDPrivateOpenAsync` (`0x8019C990`) far enough to reach `SCCheckStatus`; SD-backed open state and guest completion ABI are active
-- [x] capture/fix `SCCheckStatus` (`0x801B0220`) with pinned immediate `SC_STATUS_OK` semantics
+- [x] hardware-cross `SCCheckStatus` (`0x801B0220`) far enough to reach `DVDInit`; pinned immediate `SC_STATUS_OK` semantics are active
+- [x] capture/fix `DVDInit` (`0x8015EA1C`) startup-visible guest bookkeeping without fabricating FST data
+- [ ] publish a real local DVD FST/data mapping before resource loading requires it
 - [ ] move NAND async completion draining from the fast-track HLE boundary to a verified alarm/IOS scheduling point if later hardware ordering requires it
 - [ ] reach PAL Mario Kart Wii `main` (`0x8000B6B0`)
 - [ ] identify and fix the first post-`main` runtime blocker

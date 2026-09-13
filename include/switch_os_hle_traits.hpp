@@ -67,6 +67,7 @@ struct KnownNativeCpuCall<0x801B0220u> {
 // Storage/title-service initialization is part of the same early OS bootstrap
 // catalogue.
 #include "switch_nand_hle_traits.hpp"
+#include "switch_nand_open_async_hle_traits.hpp"
 #include "switch_dvd_hle_traits.hpp"
 #include "switch_dvd_low_hle_traits.hpp"
 #include "switch_esp_hle_traits.hpp"

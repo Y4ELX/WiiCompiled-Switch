@@ -83,4 +83,16 @@ extern "C" __attribute__((used)) void synthetic_os_init_stm_hle_probe(CpuContext
     ctx->gpr[13] = savedR13;
 }
 
+// Nintendo-data-free compile coverage for PAL SCCheckStatus (0x801B0220).
+// Seed r3 with the exact -12 value seen immediately before the hardware
+// blocker; the pinned HLE must replace it with SC_STATUS_OK (0).
+extern "C" __attribute__((used)) void synthetic_sc_check_status_hle_probe(CpuContext* ctx) {
+    if (!ctx) {
+        return;
+    }
+
+    ctx->gpr[3] = 0xFFFFFFF4u;
+    InvokeDirectCpu<0x801B0220u>(ctx);
+}
+
 #endif

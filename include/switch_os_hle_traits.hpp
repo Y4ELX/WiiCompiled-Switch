@@ -49,5 +49,20 @@ struct KnownNativeCpuCall<0x801AB848u> {
     }
 };
 
+// SCCheckStatus (PAL 0x801B0220). OSInit polls this while SYSCONF is being
+// loaded asynchronously through NAND IPC. Pinned WiiCompiled has no matching
+// asynchronous IOS callback pump for this path, so its native override returns
+// SC_STATUS_OK (0) immediately to prevent the guest from spinning forever.
+template <>
+struct KnownNativeCpuCall<0x801B0220u> {
+    static constexpr bool kAvailable = true;
+
+    static inline void Invoke(CpuContext* cpu) noexcept {
+        if (cpu) {
+            cpu->gpr[3] = 0u;
+        }
+    }
+};
+
 // Storage initialization is part of the same early OS bootstrap catalogue.
 #include "switch_nand_hle_traits.hpp"

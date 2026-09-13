@@ -57,7 +57,9 @@ NANDInit
   ↓
 NANDPrivateOpenAsync
   ↓
-SCCheckStatus               ← latest hardware blocker fixed in main
+SCCheckStatus
+  ↓
+DVDInit                     ← latest hardware blocker fixed in main
   ↓
 remaining early OS/runtime boundaries
   ↓
@@ -88,7 +90,8 @@ The hardware-driven guest blocker sequence has now captured and fixed:
 - `__OSInitSTM` (`0x801AB848`);
 - `NANDInit` (`0x8019E18C`);
 - `NANDPrivateOpenAsync` (`0x8019C990`);
-- `SCCheckStatus` (`0x801B0220`).
+- `SCCheckStatus` (`0x801B0220`);
+- `DVDInit` (`0x8015EA1C`).
 
 `DCZeroRange` exposed an important Switch-runtime contract mismatch: pinned WiiCompiled catches an invalid guest-memory access, while the Switch `Memory::GetPointer` slice returns `nullptr`. A hardware call with `r3 = 0xFFFFFFFF` aligned to `0xFFFFFFE0`, and the old HLE called `memset(nullptr, 0, 0x20)`. The Switch HLE now checks the returned guest pointer before entering libc while preserving valid-range zeroing and the GX/DMA notification seam.
 
@@ -98,9 +101,11 @@ The hardware-driven guest blocker sequence has now captured and fixed:
 
 `NANDInit` links the Wii-style guest NAND state to the SD-backed Horizon runtime: it derives the four-character game code from guest memory with PAL `RMCP` fallback, creates the title data directory under `nand_root()`, publishes `/title/00010004/<gamecode>/data` into guest `NANDHomeDir` at `0x80346D20`, writes initialized state `2` at `0x80386848`, and returns `NAND_RESULT_OK` without opening Wii IOS `/dev/fs`.
 
-`NANDPrivateOpenAsync` performs a real SD-backed synchronous NAND open below `nand_root()`, normalizes/clamps Wii paths, supports modes 1/2/3, publishes a persistent host fd plus `NANDFileInfo::openFlag = 1`, and invokes the guest completion ABI as `(result, commandBlock)` on a scratch `CpuContext`. Pinned WiiCompiled normally drains queued NAND callbacks later from its alarm/IOS pump; the current fast-track drains the queued callback before the HLE returns. A real hardware run has now progressed past this boundary to `SCCheckStatus`, proving that this scheduling approximation does not block the current boot path up to that point, but it remains a timing difference rather than a claim of full equivalence.
+`NANDPrivateOpenAsync` performs a real SD-backed synchronous NAND open below `nand_root()`, normalizes/clamps Wii paths, supports modes 1/2/3, publishes a persistent host fd plus `NANDFileInfo::openFlag = 1`, and invokes the guest completion ABI as `(result, commandBlock)` on a scratch `CpuContext`. Pinned WiiCompiled normally drains queued NAND callbacks later from its alarm/IOS pump; the current fast-track drains the queued callback before the HLE returns. A real hardware run progressed past this boundary to `SCCheckStatus`, proving that this scheduling approximation does not block the current boot path up to that point, but it remains a timing difference rather than a claim of full equivalence.
 
-`SCCheckStatus` is the latest hardware-captured `DIRECT` blocker. Pinned WiiCompiled native-overrides it to return `0` (`SC_STATUS_OK`) immediately because Wii `OSInit` otherwise polls this status while waiting for an asynchronous SYSCONF/NAND IOS completion path that the host runtime does not service here. The Switch HLE mirrors that exact guest-visible result and performs no Wii IOS access. The incoming hardware value `r3 = 0xFFFFFFF4` (`-12`) is prior caller state and is overwritten with success by the HLE.
+`SCCheckStatus` is native-overridden to return `0` (`SC_STATUS_OK`) immediately because Wii `OSInit` otherwise polls while waiting for an asynchronous SYSCONF/NAND IOS completion path that the host runtime does not service here. A subsequent real-hardware run advanced beyond this boundary and captured `DVDInit`, validating the current `SCCheckStatus` fast-track behavior.
+
+`DVDInit` (`0x8015EA1C`) is the latest hardware-captured `DIRECT` blocker. Pinned WiiCompiled initializes guest DVD flags, waiting/cancel queues, context sentinels and the low-memory disc header, then publishes a runtime FST and calls translated `__DVDFSInit` (`0x8015DF1C`). The Switch HLE now mirrors the startup-visible guest bookkeeping and PAL disc identity without fabricating game-derived FST data. If low memory already contains a structurally valid FST it dispatches translated `__DVDFSInit`; otherwise real DVD/FST publication remains an explicit follow-up. This boundary is CI-valid and merged, but a post-fix hardware run is still required to prove the next advance.
 
 An earlier hardware run exposed a separate **pre-guest host crash** during `MAIN_PLATFORM_INIT`: no guest context was active, GuestFlat was not initialized, and the fault register state matched an 8 MiB host memory clear in the libnx PrintConsole/NV path. The M2 local fast-track therefore starts **headless** and relies on SD diagnostics until a real GX backend exists. Subsequent hardware runs have confirmed that this headless path reaches `TRANSLATED_EXEC_ENTER` with an active guest context.
 

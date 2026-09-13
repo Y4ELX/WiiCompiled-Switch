@@ -167,4 +167,32 @@ std::int32_t OpenSync(std::uint32_t pathPtr,
     }
 }
 
+std::int32_t ReadSync(std::uint32_t fileInfoPtr,
+                      std::uint32_t bufferPtr,
+                      std::uint32_t length) noexcept {
+    if (fileInfoPtr == 0u || !Memory::Contains(fileInfoPtr, 4u) ||
+        bufferPtr == 0u || !Memory::Contains(bufferPtr, length == 0u ? 1u : length)) {
+        return kResultInvalid;
+    }
+
+    try {
+        auto* buffer = static_cast<std::uint8_t*>(Memory::GetPointer(bufferPtr));
+        if (!buffer) {
+            return kResultInvalid;
+        }
+
+        const std::int32_t fd = static_cast<std::int32_t>(Memory::Read32(fileInfoPtr));
+        std::lock_guard<std::mutex> lock(g_fileMutex);
+        const auto it = g_fileHandles.find(fd);
+        if (it == g_fileHandles.end() || !it->second.file) {
+            return kResultInvalid;
+        }
+
+        const std::size_t bytesRead = std::fread(buffer, 1u, length, it->second.file);
+        return static_cast<std::int32_t>(bytesRead);
+    } catch (...) {
+        return kResultInvalid;
+    }
+}
+
 } // namespace mkw::switch_nand_runtime

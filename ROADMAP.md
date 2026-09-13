@@ -37,7 +37,8 @@
 - [x] hardware-cross `DVDInit` (`0x8015EA1C`) far enough to reach `DVDLowClearCoverInterrupt`; startup-visible guest bookkeeping is active without fabricating FST data
 - [x] hardware-cross `DVDLowClearCoverInterrupt` (`0x80166964`) far enough to reach `DVDLowInquiry`; pinned immediate-success semantics are active
 - [x] hardware-cross `DVDLowInquiry` (`0x80165A30`) far enough to reach `ESP_InitLib`; command-block completion and shared DVD cancel/reset bookkeeping are active
-- [x] capture/fix `ESP_InitLib` (`0x801671D0`) with pinned immediate-success semantics and no host `/dev/es` dependency
+- [x] hardware-cross `ESP_InitLib` (`0x801671D0`) far enough to reach `ESP_CloseLib`; pinned immediate-success semantics are active with no host `/dev/es` dependency
+- [x] capture/fix `ESP_CloseLib` (`0x80167224`) with pinned no-op close and immediate-success semantics
 - [ ] publish a real local DVD FST/data mapping before resource loading requires it
 - [ ] move NAND async completion draining from the fast-track HLE boundary to a verified alarm/IOS scheduling point if later hardware ordering requires it
 - [ ] reach PAL Mario Kart Wii `main` (`0x8000B6B0`)

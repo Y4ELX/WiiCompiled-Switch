@@ -4,6 +4,7 @@
 
 extern "C" void mkw_switch_hle_vi_init(CpuContext* cpu) noexcept;
 extern "C" void mkw_switch_hle_vi_set_black(CpuContext* cpu) noexcept;
+extern "C" void mkw_switch_hle_vi_configure(CpuContext* cpu) noexcept;
 
 template <>
 struct KnownNativeCpuCall<0x801B94A4u> {
@@ -43,5 +44,17 @@ struct KnownNativeCpuCall<0x801BAB2Cu> {
 
     static inline void Invoke(CpuContext* cpu) noexcept {
         mkw_switch_hle_vi_set_black(cpu);
+    }
+};
+
+// VIConfigure (PAL 0x801B9F6C). Pinned WiiCompiled validates and decodes the
+// guest GXRenderModeObj into pending VI state. The host presenter call is not
+// part of the Switch fast-track contract while rendering remains headless.
+template <>
+struct KnownNativeCpuCall<0x801B9F6Cu> {
+    static constexpr bool kAvailable = true;
+
+    static inline void Invoke(CpuContext* cpu) noexcept {
+        mkw_switch_hle_vi_configure(cpu);
     }
 };

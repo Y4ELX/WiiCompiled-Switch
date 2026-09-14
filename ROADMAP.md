@@ -49,7 +49,8 @@
 - [x] hardware-cross `OSLockMutex` far enough to reach `OSGetCurrentThread` (`0x801A98B0`)
 - [x] hardware-cross `OSGetCurrentThread` far enough to reach PAL `GXInit` (`0x8016B850`)
 - [x] hardware-cross the PAL `GXInit` bridge far enough to reach PAL `VIInit` (`0x801B94A4`)
-- [ ] hardware-validate the PAL `VIInit` / `__VIInit` native bridge and identify the next post-main blocker
+- [x] hardware-cross the PAL `VIInit` / `__VIInit` bridge far enough to reach `SCGetEuRgb60Mode` (`0x801B1CAC`)
+- [ ] hardware-validate the pinned PAL60 `SCGetEuRgb60Mode` native bridge and identify the next post-main blocker
 - [ ] publish a real local DVD FST/data mapping before resource loading requires it
 - [ ] move NAND async completion draining from the fast-track HLE boundary to a verified alarm/IOS scheduling point if later hardware ordering requires it
 - [ ] complete thread/mutex/condition-variable semantics required by the game

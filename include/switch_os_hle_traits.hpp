@@ -65,6 +65,20 @@ struct KnownNativeCpuCall<0x801B0220u> {
     }
 };
 
+// SCGetEuRgb60Mode (PAL 0x801B1CAC). Pinned WiiCompiled deliberately exposes
+// PAL60/RGB60 as the SYSCONF value for PAL builds, so return 1 directly. This
+// boundary has no guest-memory or IOS side effects in the pin.
+template <>
+struct KnownNativeCpuCall<0x801B1CACu> {
+    static constexpr bool kAvailable = true;
+
+    static inline void Invoke(CpuContext* cpu) noexcept {
+        if (cpu) {
+            cpu->gpr[3] = 1u;
+        }
+    }
+};
+
 // Storage/title-service initialization is part of the same early OS bootstrap
 // catalogue.
 #include "switch_nand_hle_traits.hpp"

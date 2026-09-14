@@ -69,6 +69,7 @@ inline void WriteStack64(std::uint32_t address, std::uint64_t value) {
     (defined(MKW_SYNTHETIC_EXECUTION) && MKW_SYNTHETIC_EXECUTION)
 #include "switch_native_hle_traits.hpp"
 #include "switch_gx_hle_traits.hpp"
+#include "switch_vi_hle_traits.hpp"
 #include "switch_mutex_hle_traits.hpp"
 #include "switch_os_hle_traits.hpp"
 #include "switch_audio_hle_traits.hpp"

@@ -48,7 +48,8 @@
 - [x] hardware-cross the repaired MEM2 allocation path far enough to reach `OSLockMutex` (`0x801A7EE4`)
 - [x] hardware-cross `OSLockMutex` far enough to reach `OSGetCurrentThread` (`0x801A98B0`)
 - [x] hardware-cross `OSGetCurrentThread` far enough to reach PAL `GXInit` (`0x8016B850`)
-- [ ] hardware-validate the PAL `GXInit` native bridge from PR #126 and identify the next post-main blocker
+- [x] hardware-cross the PAL `GXInit` bridge far enough to reach PAL `VIInit` (`0x801B94A4`)
+- [ ] hardware-validate the PAL `VIInit` / `__VIInit` native bridge and identify the next post-main blocker
 - [ ] publish a real local DVD FST/data mapping before resource loading requires it
 - [ ] move NAND async completion draining from the fast-track HLE boundary to a verified alarm/IOS scheduling point if later hardware ordering requires it
 - [ ] complete thread/mutex/condition-variable semantics required by the game

@@ -23,6 +23,7 @@ constexpr std::uint32_t kViNextFrameBufferAddr = 0x80386BA0u;
 constexpr std::uint32_t kViNextFrameBufferHwAddr = 0x80350890u;
 
 std::atomic<bool> g_viInitialized{false};
+std::atomic<bool> g_viPendingBlack{false};
 
 void Write8IfMapped(std::uint32_t address, std::uint8_t value) noexcept {
     if (Memory::Contains(address, 1u)) {
@@ -73,6 +74,21 @@ extern "C" void mkw_switch_hle_vi_init(CpuContext* cpu) noexcept {
     Write32IfMapped(kViPostRetraceCallbackAddr, 0u);
     Write32IfMapped(kViNextFrameBufferAddr, 0u);
     Write32IfMapped(kViNextFrameBufferHwAddr, 0u);
+}
+
+extern "C" void mkw_switch_hle_vi_set_black(CpuContext* cpu) noexcept {
+    if (!cpu) {
+        return;
+    }
+
+    const bool makeBlack = cpu->gpr[3] != 0u;
+
+    // Pinned VISetBlack writes only the pending VI state. It becomes active
+    // after VIFlush/retrace; do not fabricate either event in the headless
+    // fast-track. Ensure the same minimal VI initialization has happened first.
+    mkw_switch_hle_vi_init(cpu);
+    g_viPendingBlack.store(makeBlack, std::memory_order_release);
+    cpu->gpr[3] = 0u;
 }
 
 #endif

@@ -8,6 +8,7 @@
 #include <switch.h>
 #include <cstddef>
 #include <cstdio>
+#include <cstring>
 #include <fcntl.h>
 #include <unistd.h>
 #else
@@ -28,10 +29,15 @@ constexpr const char* kMainReachedPath =
     "sdmc:/switch/WiiCompiled-Switch/fast-track-main-reached.txt";
 constexpr const char* kPostMainDispatchPath =
     "sdmc:/switch/WiiCompiled-Switch/fast-track-post-main-dispatch.txt";
-constexpr const char* kPostMainTracePath =
+constexpr const char* kPostMainLastDispatchPath =
     "sdmc:/switch/WiiCompiled-Switch/fast-track-post-main-last-dispatch.txt";
+constexpr const char* kPostMainTracePath =
+    "sdmc:/switch/WiiCompiled-Switch/fast-track-post-main-trace.txt";
 constexpr std::uint32_t kPalMainAddress = 0x8000B6B0u;
 constexpr std::uint64_t kDurableEarlyPostMainDispatches = 16u;
+constexpr std::uint64_t kDensePostMainTraceDispatches = 48u;
+constexpr std::uint64_t kMaxPostMainTraceEntries = 64u;
+constexpr std::uint64_t kPostMainTraceFsyncStride = 8u;
 
 const char* volatile g_fast_track_stage = "PROCESS_START";
 bool g_liveness_files_reset = false;
@@ -39,15 +45,37 @@ bool g_main_reached = false;
 bool g_post_main_dispatch_recorded = false;
 std::uint64_t g_dispatch_count = 0u;
 std::uint64_t g_post_main_dispatch_count = 0u;
+std::uint64_t g_post_main_trace_entries = 0u;
 std::uint64_t g_last_heartbeat_tick = 0u;
+
+const char* post_main_phase_name(std::uint32_t target) noexcept {
+    switch (target) {
+    case 0x80008EF0u:
+        return "System::RKSystem::main";
+    case 0x80008FB4u:
+        return "EGG::BaseSystem::initialize";
+    case 0x80009194u:
+        return "System::RKSystem::initialize";
+    case 0x8000951Cu:
+        return "System::RKSystem::run";
+    case 0x80243D18u:
+        return "EGG::Video::initialize";
+    case 0x80243D6Cu:
+        return "EGG::Video::configure";
+    default:
+        return "-";
+    }
+}
 
 bool is_durable_post_main_phase_target(std::uint32_t target) noexcept {
     switch (target) {
     // Keep this list aligned with the pinned WiiCompiled shard emitter's
-    // runtime-toggle diagnostics / phase-tracing cold path.
+    // runtime-toggle diagnostics / phase-tracing cold path. RKSystem::run is
+    // an explicit application milestone in addition to that keep-list.
     case 0x80008EF0u:
     case 0x80008FB4u:
     case 0x80009194u:
+    case 0x8000951Cu:
     case 0x80243D18u:
     case 0x80243D6Cu:
     case 0x808897F0u:
@@ -76,13 +104,8 @@ bool is_durable_post_main_phase_target(std::uint32_t target) noexcept {
     }
 }
 
-void write_atomicish(const char* path, const char* data, std::size_t size) noexcept {
-    const int fd = ::open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    if (fd < 0) {
-        return;
-    }
-
-    std::size_t written = 0;
+void write_all(int fd, const char* data, std::size_t size) noexcept {
+    std::size_t written = 0u;
     while (written < size) {
         const ssize_t rc = ::write(fd, data + written, size - written);
         if (rc <= 0) {
@@ -90,7 +113,96 @@ void write_atomicish(const char* path, const char* data, std::size_t size) noexc
         }
         written += static_cast<std::size_t>(rc);
     }
+}
+
+void write_atomicish(const char* path, const char* data, std::size_t size) noexcept {
+    const int fd = ::open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    if (fd < 0) {
+        return;
+    }
+    write_all(fd, data, size);
     ::fsync(fd);
+    ::close(fd);
+}
+
+std::size_t format_post_main_trace_line(
+    char* buffer,
+    std::size_t capacity,
+    std::uint64_t trace_index,
+    std::uint32_t target,
+    CpuContext* cpu) noexcept {
+    if (!buffer || capacity == 0u) {
+        return 0u;
+    }
+
+    const std::uint32_t guest_pc = cpu ? cpu->pc : 0u;
+    const std::uint32_t r1 = cpu ? cpu->gpr[1] : 0u;
+    const std::uint32_t r2 = cpu ? cpu->gpr[2] : 0u;
+    const std::uint32_t r3 = cpu ? cpu->gpr[3] : 0u;
+    const std::uint32_t r13 = cpu ? cpu->gpr[13] : 0u;
+    const int n = std::snprintf(
+        buffer,
+        capacity,
+        "[%02llu] post-main=%llu dispatch=%llu target=0x%08x pc=0x%08x "
+        "r1=0x%08x r2=0x%08x r3=0x%08x r13=0x%08x stage=%s phase=%s\n",
+        static_cast<unsigned long long>(trace_index),
+        static_cast<unsigned long long>(g_post_main_dispatch_count),
+        static_cast<unsigned long long>(g_dispatch_count),
+        target,
+        guest_pc,
+        r1,
+        r2,
+        r3,
+        r13,
+        g_fast_track_stage,
+        post_main_phase_name(target));
+    if (n <= 0) {
+        return 0u;
+    }
+    return static_cast<std::size_t>(n) < capacity ? static_cast<std::size_t>(n) : capacity - 1u;
+}
+
+void append_post_main_trace(std::uint32_t target, CpuContext* cpu, bool phase_target) noexcept {
+    if (g_post_main_trace_entries >= kMaxPostMainTraceEntries) {
+        return;
+    }
+    if (g_post_main_dispatch_count > kDensePostMainTraceDispatches && !phase_target) {
+        return;
+    }
+
+    const int fd = ::open(kPostMainTracePath, O_WRONLY | O_CREAT | O_APPEND, 0666);
+    if (fd < 0) {
+        return;
+    }
+
+    if (g_post_main_trace_entries == 0u) {
+        constexpr const char kHeader[] =
+            "WiiCompiled-Switch bounded post-main translated trace\n"
+            "=====================================================\n";
+        write_all(fd, kHeader, sizeof(kHeader) - 1u);
+    }
+
+    ++g_post_main_trace_entries;
+    char buffer[512];
+    const std::size_t size = format_post_main_trace_line(
+        buffer,
+        sizeof(buffer),
+        g_post_main_trace_entries,
+        target,
+        cpu);
+    if (size != 0u) {
+        write_all(fd, buffer, size);
+    }
+
+    const bool durable_now =
+        phase_target || g_post_main_trace_entries == 1u ||
+        g_post_main_trace_entries == kMaxPostMainTraceEntries ||
+        g_post_main_dispatch_count == kDensePostMainTraceDispatches ||
+        (g_post_main_dispatch_count <= kDensePostMainTraceDispatches &&
+         g_post_main_dispatch_count % kPostMainTraceFsyncStride == 0u);
+    if (durable_now) {
+        ::fsync(fd);
+    }
     ::close(fd);
 }
 
@@ -104,6 +216,7 @@ void reset_liveness_files_once() noexcept {
     ::unlink(kHeartbeatPath);
     ::unlink(kMainReachedPath);
     ::unlink(kPostMainDispatchPath);
+    ::unlink(kPostMainLastDispatchPath);
     ::unlink(kPostMainTracePath);
 }
 
@@ -158,6 +271,25 @@ void write_liveness_record(
 } // namespace
 #endif
 
+#if MKW_FAST_TRACK_DIAGNOSTICS && \
+    defined(MKW_SYNTHETIC_FAST_TRACK) && MKW_SYNTHETIC_FAST_TRACK
+extern "C" bool mkw_switch_post_main_trace_synthetic_probe() noexcept {
+    CpuContext cpu{};
+    cpu.pc = 0x800060A4u;
+    cpu.gpr[1] = 0x80399178u;
+    cpu.gpr[2] = 0x8038EFA0u;
+    cpu.gpr[3] = 0u;
+    cpu.gpr[13] = 0x8038CC00u;
+
+    char buffer[512];
+    const std::size_t size = format_post_main_trace_line(buffer, sizeof(buffer), 1u, 0x80008EF0u, &cpu);
+    return size != 0u &&
+           std::strstr(buffer, "target=0x80008ef0") != nullptr &&
+           std::strstr(buffer, "phase=System::RKSystem::main") != nullptr &&
+           is_durable_post_main_phase_target(0x80243D18u);
+}
+#endif
+
 extern "C" void mkw_switch_set_fast_track_stage(const char* stage) noexcept {
 #if MKW_FAST_TRACK_DIAGNOSTICS
     g_fast_track_stage = stage ? stage : "<null>";
@@ -201,16 +333,20 @@ extern "C" void mkw_switch_note_translated_dispatch(
             cpu);
     }
 
-    const bool durable_post_main_trace =
+    const bool phase_target =
+        post_main_dispatch && is_durable_post_main_phase_target(target);
+    const bool durable_post_main_snapshot =
         post_main_dispatch &&
-        (g_post_main_dispatch_count <= kDurableEarlyPostMainDispatches ||
-         is_durable_post_main_phase_target(target));
-    if (durable_post_main_trace) {
+        (g_post_main_dispatch_count <= kDurableEarlyPostMainDispatches || phase_target);
+    if (durable_post_main_snapshot) {
         write_liveness_record(
-            kPostMainTracePath,
+            kPostMainLastDispatchPath,
             "WiiCompiled-Switch durable post-main translated dispatch",
             target,
             cpu);
+    }
+    if (post_main_dispatch) {
+        append_post_main_trace(target, cpu, phase_target);
     }
 
     const std::uint64_t now = armGetSystemTick();

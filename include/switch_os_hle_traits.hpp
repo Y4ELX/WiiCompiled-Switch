@@ -79,6 +79,21 @@ struct KnownNativeCpuCall<0x801B1CACu> {
     }
 };
 
+// SCGetAspectRatio (PAL 0x801B1BE4). Pinned WiiCompiled sources this from the
+// runtime widescreen setting with a default of true. The Switch fast-track has
+// no runtime-config surface for this setting yet, so mirror the pinned default
+// path and report 16:9 directly. This boundary has no guest-memory side effects.
+template <>
+struct KnownNativeCpuCall<0x801B1BE4u> {
+    static constexpr bool kAvailable = true;
+
+    static inline void Invoke(CpuContext* cpu) noexcept {
+        if (cpu) {
+            cpu->gpr[3] = 1u;
+        }
+    }
+};
+
 // Storage/title-service initialization is part of the same early OS bootstrap
 // catalogue.
 #include "switch_nand_hle_traits.hpp"

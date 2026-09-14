@@ -44,28 +44,30 @@ The following hardware blocker was `OSLockMutex` at `0x801A7EE4`. PR #123 added 
 
 The next blocker was `OSGetCurrentThread` at `0x801A98B0`. PR #124 mirrored the pinned native function's guest running-context return value. The subsequent real-Switch run crossed that address too, validating the bridge far enough to reach graphics FIFO initialization.
 
-## Latest hardware blocker: GXInit
+`GXInit` at `0x8016B850` was then reached. PR #126 mirrored the pin's guest-visible GXData/FIFO/PE initialization while deliberately leaving the Switch renderer headless. The subsequent hardware run crossed `GXInit`, validating that boot-state bridge and exposing the next native boundary.
+
+## Latest hardware blocker: VIInit
 
 The latest durable blocker is:
 
 ```text
 kind    : DIRECT
-target  : 0x8016B850
+target  : 0x801B94A4
 pc      : 0x800060A4
 r1      : 0x80399128
 r2      : 0x8038EFA0
-r3      : 0x803A9320
+r3      : 0x804293D0
 r13     : 0x8038CC00
 stage   : GUEST_POST_MAIN_ACTIVE
 ```
 
-For PAL RMCP01, doldecomp places this target in `gxInit.o`, and `EGG::GraphicsFifo` calls `GXInit` after allocating and aligning the FIFO buffer. At pinned WiiCompiled commit `a135beb201042b20f390c6695ca6b26768820fb4`, `0x8016B850` is explicitly native-overridden as `GX__Init_8016b850`.
+For PAL RMCP01, `0x801B94A4` is `VIInit`. At pinned WiiCompiled commit `a135beb201042b20f390c6695ca6b26768820fb4`, both `VIInit` and lower-level `__VIInit` (`0x801B9294`) are native-overridden through one helper that skips Wii VI MMIO and seeds generic guest-visible VI defaults.
 
-PR #126 mirrors the pin's guest-visible GX initialization contract: GXData publication/defaults, FIFO/PE queues, current-thread bookkeeping, CP/PE interrupt handlers and the pinned FIFO object return value. It intentionally does not import Aurora or claim renderer initialization. A Nintendo-data-free synthetic probe resolves the same direct-dispatch trait with fabricated FIFO arguments.
+The Switch bridge mirrors that first-initialization contract only: initialized/timing flags, NTSC-format default, 640x480 render/XFB dimensions, zero retrace count, null callbacks, null pending framebuffer and `r3 = 0`. It does not import Aurora, create a framebuffer, emulate retraces or claim renderer support. Nintendo-data-free synthetic coverage resolves both direct targets.
 
 ## Current next hardware run
 
-After PR #126 is merged, rebuild the local fast-track NRO from `main`, run it on hardware, and collect at minimum:
+After the VIInit bridge is merged, rebuild the local fast-track NRO from `main`, run it on hardware, and collect at minimum:
 
 ```text
 fast-track-dispatch-blocker.txt
@@ -81,6 +83,6 @@ fast-track-heartbeat.txt
 fast-track-exception.txt
 ```
 
-The immediate acceptance criterion is that `0x8016B850` is no longer reported as an unsupported direct dispatch. The next durable blocker, or a later named post-main phase, defines the next implementation step.
+The immediate acceptance criterion is that `0x801B94A4` is no longer reported as an unsupported direct dispatch. The next durable blocker, or a later named post-main phase, defines the next implementation step.
 
-A black screen remains expected. The fast-track GX FIFO bridge is still a deliberate sink; this GXInit bridge is boot-state compatibility, not the M3 renderer.
+A black screen remains expected. Both GX and VI bridges here are boot-state compatibility only; the fast-track GX FIFO remains a deliberate sink until the M3 renderer exists.

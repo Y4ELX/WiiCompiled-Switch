@@ -16,4 +16,8 @@
 - `HARDWARE_RESULTS_2026-09-09.md` — first recorded hardware evidence
 - `HARDWARE_RESULTS_2026-09-10.md` — hardware-validated runtime bootstrap, memory and translated-product results
 - `HARDWARE_DATA_INIT_PASS_2026-09-10.md` — real-Switch synthetic data-init handoff PASS
+- `HARDWARE_RESULTS_2026-09-12.md` — translated startup blocker progression on real Switch
+- `HARDWARE_RESULTS_2026-09-13_MAIN_REACHED.md` — PAL Mario Kart Wii `main()` reached on real Switch
+- `HARDWARE_RESULTS_2026-09-14_POST_MAIN_ACTIVE.md` — ordered post-main progression through MEM2/mutex/thread boundaries
+- `fast-track-blockers/` — blocker-specific mapping, pinned semantics and fix notes
 - `GRAPHICS_NOTES.md` — graphics backend notes and deferred M3 direction

@@ -26,11 +26,14 @@ constexpr const char* kHeartbeatPath =
     "sdmc:/switch/WiiCompiled-Switch/fast-track-heartbeat.txt";
 constexpr const char* kMainReachedPath =
     "sdmc:/switch/WiiCompiled-Switch/fast-track-main-reached.txt";
+constexpr const char* kPostMainDispatchPath =
+    "sdmc:/switch/WiiCompiled-Switch/fast-track-post-main-dispatch.txt";
 constexpr std::uint32_t kPalMainAddress = 0x8000B6B0u;
 
 const char* volatile g_fast_track_stage = "PROCESS_START";
 bool g_liveness_files_reset = false;
 bool g_main_reached = false;
+bool g_post_main_dispatch_recorded = false;
 std::uint64_t g_dispatch_count = 0u;
 std::uint64_t g_last_heartbeat_tick = 0u;
 
@@ -61,6 +64,7 @@ void reset_liveness_files_once() noexcept {
     ::unlink(kExceptionPath);
     ::unlink(kHeartbeatPath);
     ::unlink(kMainReachedPath);
+    ::unlink(kPostMainDispatchPath);
 }
 
 void write_liveness_record(
@@ -137,12 +141,25 @@ extern "C" void mkw_switch_note_translated_dispatch(
             cpu);
     }
 
+    const bool first_post_main_dispatch =
+        g_main_reached && target != kPalMainAddress &&
+        !g_post_main_dispatch_recorded;
+    if (first_post_main_dispatch) {
+        g_post_main_dispatch_recorded = true;
+        g_fast_track_stage = "GUEST_POST_MAIN_ACTIVE";
+        write_liveness_record(
+            kPostMainDispatchPath,
+            "WiiCompiled-Switch first post-main translated dispatch",
+            target,
+            cpu);
+    }
+
     const std::uint64_t now = armGetSystemTick();
     const std::uint64_t frequency = armGetSystemTickFreq();
     const bool heartbeat_due =
         g_last_heartbeat_tick == 0u || frequency == 0u ||
         now - g_last_heartbeat_tick >= frequency;
-    if (heartbeat_due || target == kPalMainAddress) {
+    if (heartbeat_due || target == kPalMainAddress || first_post_main_dispatch) {
         g_last_heartbeat_tick = now;
         write_liveness_record(
             kHeartbeatPath,

@@ -106,26 +106,25 @@ bool matches_pinned_defaults() noexcept {
 
     const Layout layout = pinned_layout();
     const std::uint32_t mem1End = Memory::kMem1CachedBase + layout.mem1_size;
-    return
-        matches_word(0x80000028u, layout.mem1_size) &&
-        matches_word(0x80000030u, layout.mem1_arena_lo) &&
-        matches_word(0x80000034u, layout.mem1_arena_hi) &&
-        matches_word(0x800000F0u, layout.mem1_size) &&
-        matches_word(0x80003100u, layout.mem1_size) &&
-        matches_word(0x80003104u, layout.mem1_size) &&
-        matches_word(0x80003108u, mem1End) &&
-        matches_word(0x8000310Cu, layout.mem1_arena_lo) &&
-        matches_word(0x80003110u, layout.mem1_arena_hi) &&
-        matches_word(0x80003118u, layout.mem2_size) &&
-        matches_word(0x8000311Cu, layout.mem2_size) &&
-        matches_word(0x80003120u, layout.mem2_end) &&
-        matches_word(0x80003124u, layout.mem2_arena_lo) &&
-        matches_word(0x80003128u, layout.mem2_arena_hi) &&
-        matches_word(0x80003130u, layout.ipc_buffer_lo) &&
-        matches_word(0x80003134u, layout.ipc_buffer_hi) &&
-        matches_word(0x80003138u, 0x00000002u) &&
-        matches_word(0x80003148u, layout.ios_reserved_lo) &&
-        matches_word(0x8000314Cu, layout.ios_reserved_hi);
+    return matches_word(0x80000028u, layout.mem1_size) &&
+           matches_word(0x80000030u, layout.mem1_arena_lo) &&
+           matches_word(0x80000034u, layout.mem1_arena_hi) &&
+           matches_word(0x800000F0u, layout.mem1_size) &&
+           matches_word(0x80003100u, layout.mem1_size) &&
+           matches_word(0x80003104u, layout.mem1_size) &&
+           matches_word(0x80003108u, mem1End) &&
+           matches_word(0x8000310Cu, layout.mem1_arena_lo) &&
+           matches_word(0x80003110u, layout.mem1_arena_hi) &&
+           matches_word(0x80003118u, layout.mem2_size) &&
+           matches_word(0x8000311Cu, layout.mem2_size) &&
+           matches_word(0x80003120u, layout.mem2_end) &&
+           matches_word(0x80003124u, layout.mem2_arena_lo) &&
+           matches_word(0x80003128u, layout.mem2_arena_hi) &&
+           matches_word(0x80003130u, layout.ipc_buffer_lo) &&
+           matches_word(0x80003134u, layout.ipc_buffer_hi) &&
+           matches_word(0x80003138u, 0x00000002u) &&
+           matches_word(0x80003148u, layout.ios_reserved_lo) &&
+           matches_word(0x8000314Cu, layout.ios_reserved_hi);
 }
 
 } // namespace mkw::wii_boot_low_memory

@@ -3,6 +3,7 @@
 #include "abi_bridge.h"
 
 extern "C" void mkw_switch_hle_vi_init(CpuContext* cpu) noexcept;
+extern "C" void mkw_switch_hle_vi_set_black(CpuContext* cpu) noexcept;
 
 template <>
 struct KnownNativeCpuCall<0x801B94A4u> {
@@ -33,5 +34,14 @@ struct KnownNativeCpuCall<0x801BAD38u> {
         if (cpu) {
             cpu->gpr[3] = 0u;
         }
+    }
+};
+
+template <>
+struct KnownNativeCpuCall<0x801BAB2Cu> {
+    static constexpr bool kAvailable = true;
+
+    static inline void Invoke(CpuContext* cpu) noexcept {
+        mkw_switch_hle_vi_set_black(cpu);
     }
 };

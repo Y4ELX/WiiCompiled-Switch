@@ -2,6 +2,7 @@
 
 #include "abi_bridge.h"
 #include "memory.h"
+#include "switch_thread_hle_traits.hpp"
 
 #include <cstdint>
 

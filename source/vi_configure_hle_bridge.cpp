@@ -55,7 +55,9 @@ extern "C" void mkw_switch_hle_vi_configure(CpuContext* cpu) noexcept {
         g_pendingXfbWidth.store(fbWidth, std::memory_order_release);
         g_pendingXfbHeight.store(xfbHeight != 0u ? xfbHeight : efbHeight,
                                  std::memory_order_release);
-    } catch (const Memory::AccessViolation&) {
+    } catch (...) {
+        // Match the pinned HLE's rejected-access path: leave pending state
+        // unchanged and still return zero to the guest caller.
     }
 
     // The pinned host presenter call is intentionally omitted in headless fast-track.

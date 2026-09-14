@@ -43,9 +43,13 @@
 - [x] hardware-cross `NANDReadAsync` (`0x8019B80C`) far enough to reach `NANDCloseAsync`; raw byte-count callback semantics and OK-zero async return are active
 - [x] hardware-cross `NANDCloseAsync` (`0x8019CAEC`) far enough to reach PAL `main`; persistent-fd close state, closed guest openFlag and verbatim async return semantics are active
 - [x] reach PAL Mario Kart Wii `main` (`0x8000B6B0`) on real Switch hardware after 605 translated dispatches
+- [x] prove post-main execution enters `System::RKSystem::main` (`0x80008EF0`) and `System::RKSystem::initialize` (`0x80009194`)
+- [x] identify and fix the first post-`main` runtime blocker under #117: missing Wii boot low-memory/MEM2 arena seed before the second `OSInitAlloc` (`0x801A0FC8`)
+- [x] hardware-cross the repaired MEM2 allocation path far enough to reach `OSLockMutex` (`0x801A7EE4`)
+- [x] hardware-cross `OSLockMutex` far enough to reach `OSGetCurrentThread` (`0x801A98B0`)
+- [ ] hardware-validate the merged `OSGetCurrentThread` (`0x801A98B0`) native bridge and identify the next post-main blocker
 - [ ] publish a real local DVD FST/data mapping before resource loading requires it
 - [ ] move NAND async completion draining from the fast-track HLE boundary to a verified alarm/IOS scheduling point if later hardware ordering requires it
-- [ ] identify and fix the first post-`main` runtime blocker under #117
 - [ ] complete thread/mutex/condition-variable semantics required by the game
 - [ ] complete filesystem/NAND/DVD abstractions required by boot
 - [ ] replace remaining temporary runtime/HLE stubs with verified semantics
@@ -55,8 +59,9 @@ Hardware evidence is recorded in:
 - `docs/HARDWARE_RESULTS_2026-09-10.md`
 - `docs/HARDWARE_RESULTS_2026-09-12.md`
 - `docs/HARDWARE_RESULTS_2026-09-13_MAIN_REACHED.md`
+- `docs/HARDWARE_RESULTS_2026-09-14_POST_MAIN_ACTIVE.md`
 
-The current hardware-driven method remains deliberate after `main`: execute the broadest safe translated path, stop on the first unsupported native/translated boundary or attributable exception, mirror the pinned WiiCompiled semantics, validate in Nintendo-data-free CI, then repeat on hardware. Post-main bring-up is tracked in #117.
+The current hardware-driven method remains deliberate after `main`: execute the broadest safe translated path, stop on the first unsupported native/translated boundary or attributable exception, mirror the pinned WiiCompiled semantics, validate in Nintendo-data-free CI, then repeat on hardware. Post-main bring-up remains tracked in #117.
 
 ## M3 — graphics / first frame
 - [ ] Resolve shared upstream GX safety blockers before attributing failures to a Switch backend:
@@ -85,7 +90,8 @@ The upstream GX audit behind issues #109–#112 is recorded in `docs/UPSTREAM_GX
 - [x] User-owned local translation/build pipeline exists
 - [x] enter translated Mario Kart Wii startup on real Switch hardware
 - [x] reach game `main()` on real Switch hardware
-- [ ] capture and fix the first post-main blocker (#117)
+- [x] capture and fix the first post-main blocker (#117)
+- [ ] continue post-main initialization blocker-by-blocker through system/resource initialization
 - [ ] complete game/resource initialization
 - [ ] menus
 - [ ] offline time trial

@@ -9,8 +9,8 @@ static_assert(KnownNativeCpuCall<0x801A7FC0u>::kAvailable);
 // Nintendo-data-free compile/link coverage for the blocker-driven OSMutex HLE.
 // Null mutex pointers exercise the safe early return while still instantiating
 // the exact static direct-dispatch templates used by real translated shards.
-extern "C" __attribute__((noinline, used))
-void synthetic_os_mutex_hle_link_probe(CpuContext* cpu) {
+extern "C" __attribute__((noinline, used)) void synthetic_os_mutex_hle_link_probe(
+    CpuContext* cpu) {
     if (!cpu) {
         return;
     }

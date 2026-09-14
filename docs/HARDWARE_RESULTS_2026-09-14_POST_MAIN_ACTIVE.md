@@ -52,28 +52,30 @@ The next blocker was `OSGetCurrentThread` at `0x801A98B0`. PR #124 mirrored the 
 
 `SCGetAspectRatio` at `0x801B1BE4` was then reached. PR #129 mirrored the pin's default widescreen path (`RuntimeConfigFile::WidescreenEnabled(true)`, therefore `r3 = 1` in the current Switch fast-track) without guest-memory, NAND/IOS, VI or renderer side effects. The subsequent real-Switch run crossed that boundary and exposed a VI status query.
 
-## Latest hardware blocker: VIGetDTVStatus
+`VIGetDTVStatus` at `0x801BAD38` was then reached. PR #130 mirrored the pin's native disabled/not-ready result (`r3 = 0`) without Wii VI MMIO or renderer side effects. The subsequent real-Switch run crossed that boundary and exposed the first VI pending-state mutation.
+
+## Latest hardware blocker: VISetBlack
 
 The latest durable blocker is:
 
 ```text
 kind    : DIRECT
-target  : 0x801BAD38
+target  : 0x801BAB2C
 pc      : 0x800060A4
-r1      : 0x803990E8
+r1      : 0x80399108
 r2      : 0x8038EFA0
 r3      : 0x00000001
 r13     : 0x8038CC00
 stage   : GUEST_POST_MAIN_ACTIVE
 ```
 
-For PAL RMCP01, `0x801BAD38` is `VIGetDTVStatus()`. At pinned WiiCompiled commit `a135beb201042b20f390c6695ca6b26768820fb4`, this function is native-overridden. The Wii implementation would read VI MMIO at `0xCC00206E`, but the pinned HLE deliberately skips that hardware read and returns `0`, documented as DTV not ready / disabled.
+For PAL RMCP01, `0x801BAB2C` is `VISetBlack()`. At pinned WiiCompiled commit `a135beb201042b20f390c6695ca6b26768820fb4`, the native HLE treats `r3 != 0` as a black-screen request, ensures the VI state exists, stores the request in **pending** VI state, and returns `0`.
 
-The Switch bridge mirrors that exact guest-visible contract with `r3 = 0`. It does not touch guest memory, retrace counters, framebuffer state, Aurora or the headless renderer. A Nintendo-data-free synthetic probe resolves the same direct target and seeds the hardware-observed `r3 = 1` input shape.
+The pin deliberately does not apply that value immediately. `VIFlush` arms pending state and a later retrace commits it. The Switch fast-track therefore preserves the requested pending-black boolean locally and returns `r3 = 0`, but does not fabricate `VIFlush`, a retrace, a framebuffer, Aurora or a presenter. A Nintendo-data-free synthetic probe resolves the same direct target and seeds the hardware-observed `r3 = 1` input shape.
 
 ## Current next hardware run
 
-After the `VIGetDTVStatus` bridge is merged, rebuild the local fast-track NRO from `main`, run it on hardware, and collect at minimum:
+After the `VISetBlack` bridge is merged, rebuild the local fast-track NRO from `main`, run it on hardware, and collect at minimum:
 
 ```text
 fast-track-dispatch-blocker.txt
@@ -89,6 +91,6 @@ fast-track-heartbeat.txt
 fast-track-exception.txt
 ```
 
-The immediate acceptance criterion is that `0x801BAD38` is no longer reported as an unsupported direct dispatch. The next durable blocker, or a later named post-main phase, defines the next implementation step.
+The immediate acceptance criterion is that `0x801BAB2C` is no longer reported as an unsupported direct dispatch. The next durable blocker, or a later named post-main phase, defines the next implementation step.
 
 A black screen remains expected. GX and VI bridges here are boot-state compatibility only; the fast-track GX FIFO remains a deliberate sink until the M3 renderer exists.

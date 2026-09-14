@@ -44,30 +44,32 @@ The following hardware blocker was `OSLockMutex` at `0x801A7EE4`. PR #123 added 
 
 The next blocker was `OSGetCurrentThread` at `0x801A98B0`. PR #124 mirrored the pinned native function's guest running-context return value. The subsequent real-Switch run crossed that address too, validating the bridge far enough to reach graphics FIFO initialization.
 
-`GXInit` at `0x8016B850` was then reached. PR #126 mirrored the pin's guest-visible GXData/FIFO/PE initialization while deliberately leaving the Switch renderer headless. The subsequent hardware run crossed `GXInit`, validating that boot-state bridge and exposing the next native boundary.
+`GXInit` at `0x8016B850` was then reached. PR #126 mirrored the pin's guest-visible GXData/FIFO/PE initialization while deliberately leaving the Switch renderer headless. The subsequent hardware run crossed `GXInit`, validating that boot-state bridge and exposing `VIInit`.
 
-## Latest hardware blocker: VIInit
+`VIInit` at `0x801B94A4` was then reached. PR #127 mirrored pinned WiiCompiled's VI first-initialization contract without Wii MMIO, Aurora, a fabricated framebuffer or synthetic retraces. The subsequent real-Switch run crossed `VIInit`, validating that boundary and exposing the next SYSCONF getter.
+
+## Latest hardware blocker: SCGetEuRgb60Mode
 
 The latest durable blocker is:
 
 ```text
 kind    : DIRECT
-target  : 0x801B94A4
+target  : 0x801B1CAC
 pc      : 0x800060A4
-r1      : 0x80399128
+r1      : 0x803990E8
 r2      : 0x8038EFA0
-r3      : 0x804293D0
+r3      : 0x00000000
 r13     : 0x8038CC00
 stage   : GUEST_POST_MAIN_ACTIVE
 ```
 
-For PAL RMCP01, `0x801B94A4` is `VIInit`. At pinned WiiCompiled commit `a135beb201042b20f390c6695ca6b26768820fb4`, both `VIInit` and lower-level `__VIInit` (`0x801B9294`) are native-overridden through one helper that skips Wii VI MMIO and seeds generic guest-visible VI defaults.
+For PAL RMCP01, `0x801B1CAC` is `SCGetEuRgb60Mode()`. At pinned WiiCompiled commit `a135beb201042b20f390c6695ca6b26768820fb4`, this is a native override that returns `1` directly. The pin documents `0` as PAL50 and `1` as PAL60/RGB60, and deliberately defaults PAL builds to PAL60 so they do not take the half-rate PAL50 synchronization path on modern displays.
 
-The Switch bridge mirrors that first-initialization contract only: initialized/timing flags, NTSC-format default, 640x480 render/XFB dimensions, zero retrace count, null callbacks, null pending framebuffer and `r3 = 0`. It does not import Aurora, create a framebuffer, emulate retraces or claim renderer support. Nintendo-data-free synthetic coverage resolves both direct targets.
+The Switch bridge mirrors that exact guest-visible contract: `r3 = 1` with no NAND, IOS, guest-memory, VI-timing or renderer side effects. A Nintendo-data-free synthetic probe resolves the same direct target with the hardware-observed `r3 = 0` input shape.
 
 ## Current next hardware run
 
-After the VIInit bridge is merged, rebuild the local fast-track NRO from `main`, run it on hardware, and collect at minimum:
+After the `SCGetEuRgb60Mode` bridge is merged, rebuild the local fast-track NRO from `main`, run it on hardware, and collect at minimum:
 
 ```text
 fast-track-dispatch-blocker.txt
@@ -83,6 +85,6 @@ fast-track-heartbeat.txt
 fast-track-exception.txt
 ```
 
-The immediate acceptance criterion is that `0x801B94A4` is no longer reported as an unsupported direct dispatch. The next durable blocker, or a later named post-main phase, defines the next implementation step.
+The immediate acceptance criterion is that `0x801B1CAC` is no longer reported as an unsupported direct dispatch. The next durable blocker, or a later named post-main phase, defines the next implementation step.
 
-A black screen remains expected. Both GX and VI bridges here are boot-state compatibility only; the fast-track GX FIFO remains a deliberate sink until the M3 renderer exists.
+A black screen remains expected. GX and VI bridges here are boot-state compatibility only; the fast-track GX FIFO remains a deliberate sink until the M3 renderer exists.

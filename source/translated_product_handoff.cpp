@@ -1,5 +1,7 @@
 #include "translated_product_handoff.hpp"
 
+#include "wii_boot_low_memory.hpp"
+
 extern "C" void mkw_switch_set_fast_track_stage(const char* stage) noexcept;
 
 extern "C" __attribute__((weak))
@@ -37,6 +39,12 @@ bool run_data_initializer() noexcept {
         mkw_switch_set_fast_track_stage("DATA_INIT_UNAVAILABLE");
         return false;
     }
+
+    // Match pinned WiiCompiled SystemBridge startup ordering:
+    // Memory::Init -> SeedLowMemDefaults -> InitializeDataSections.
+    mkw_switch_set_fast_track_stage("BOOT_LOWMEM_SEED");
+    wii_boot_low_memory::seed_pinned_defaults();
+    mkw_switch_set_fast_track_stage("BOOT_LOWMEM_SEEDED");
 
     mkw_switch_set_fast_track_stage("DATA_INIT_ENTER");
     const bool result = api->initialize_data_sections();

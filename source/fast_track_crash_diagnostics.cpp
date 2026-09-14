@@ -28,14 +28,53 @@ constexpr const char* kMainReachedPath =
     "sdmc:/switch/WiiCompiled-Switch/fast-track-main-reached.txt";
 constexpr const char* kPostMainDispatchPath =
     "sdmc:/switch/WiiCompiled-Switch/fast-track-post-main-dispatch.txt";
+constexpr const char* kPostMainTracePath =
+    "sdmc:/switch/WiiCompiled-Switch/fast-track-post-main-last-dispatch.txt";
 constexpr std::uint32_t kPalMainAddress = 0x8000B6B0u;
+constexpr std::uint64_t kDurableEarlyPostMainDispatches = 16u;
 
 const char* volatile g_fast_track_stage = "PROCESS_START";
 bool g_liveness_files_reset = false;
 bool g_main_reached = false;
 bool g_post_main_dispatch_recorded = false;
 std::uint64_t g_dispatch_count = 0u;
+std::uint64_t g_post_main_dispatch_count = 0u;
 std::uint64_t g_last_heartbeat_tick = 0u;
+
+bool is_durable_post_main_phase_target(std::uint32_t target) noexcept {
+    switch (target) {
+    // Keep this list aligned with the pinned WiiCompiled shard emitter's
+    // runtime-toggle diagnostics / phase-tracing cold path.
+    case 0x80008EF0u:
+    case 0x80008FB4u:
+    case 0x80009194u:
+    case 0x80243D18u:
+    case 0x80243D6Cu:
+    case 0x808897F0u:
+    case 0x802226D8u:
+    case 0x805C3218u:
+    case 0x805E7460u:
+    case 0x8063C470u:
+    case 0x8063C4D4u:
+    case 0x8063C560u:
+    case 0x8063C714u:
+    case 0x80198CA8u:
+    case 0x80199038u:
+    case 0x801992A8u:
+    case 0x801998A4u:
+    case 0x80226C78u:
+    case 0x80226EBCu:
+    case 0x80229814u:
+    case 0x80229C5Cu:
+    case 0x80229DCCu:
+    case 0x80229DD8u:
+    case 0x801A7424u:
+    case 0x80672CC8u:
+        return true;
+    default:
+        return false;
+    }
+}
 
 void write_atomicish(const char* path, const char* data, std::size_t size) noexcept {
     const int fd = ::open(path, O_WRONLY | O_CREAT | O_TRUNC, 0666);
@@ -65,6 +104,7 @@ void reset_liveness_files_once() noexcept {
     ::unlink(kHeartbeatPath);
     ::unlink(kMainReachedPath);
     ::unlink(kPostMainDispatchPath);
+    ::unlink(kPostMainTracePath);
 }
 
 void write_liveness_record(
@@ -85,6 +125,7 @@ void write_liveness_record(
         "%s\n"
         "========================================\n"
         "dispatch count        : %llu\n"
+        "post-main dispatch    : %llu\n"
         "last target           : 0x%08x\n"
         "guest pc              : 0x%08x\n"
         "r1                    : 0x%08x\n"
@@ -96,6 +137,7 @@ void write_liveness_record(
         "main reached          : %s\n",
         title,
         static_cast<unsigned long long>(g_dispatch_count),
+        static_cast<unsigned long long>(g_post_main_dispatch_count),
         target,
         guest_pc,
         r1,
@@ -109,7 +151,9 @@ void write_liveness_record(
         return;
     }
 
-    const std::size_t size = static_cast<std::size_t>(n) < sizeof(buffer) ? static_cast<std::size_t>(n) : sizeof(buffer) - 1;
+    const std::size_t size = static_cast<std::size_t>(n) < sizeof(buffer)
+        ? static_cast<std::size_t>(n)
+        : sizeof(buffer) - 1;
     write_atomicish(path, buffer, size);
 }
 
@@ -141,15 +185,32 @@ extern "C" void mkw_switch_note_translated_dispatch(
             cpu);
     }
 
+    const bool post_main_dispatch =
+        g_main_reached && target != kPalMainAddress;
+    if (post_main_dispatch) {
+        ++g_post_main_dispatch_count;
+    }
+
     const bool first_post_main_dispatch =
-        g_main_reached && target != kPalMainAddress &&
-        !g_post_main_dispatch_recorded;
+        post_main_dispatch && !g_post_main_dispatch_recorded;
     if (first_post_main_dispatch) {
         g_post_main_dispatch_recorded = true;
         g_fast_track_stage = "GUEST_POST_MAIN_ACTIVE";
         write_liveness_record(
             kPostMainDispatchPath,
             "WiiCompiled-Switch first post-main translated dispatch",
+            target,
+            cpu);
+    }
+
+    const bool durable_post_main_trace =
+        post_main_dispatch &&
+        (g_post_main_dispatch_count <= kDurableEarlyPostMainDispatches ||
+         is_durable_post_main_phase_target(target));
+    if (durable_post_main_trace) {
+        write_liveness_record(
+            kPostMainTracePath,
+            "WiiCompiled-Switch durable post-main translated dispatch",
             target,
             cpu);
     }

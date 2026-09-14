@@ -58,8 +58,7 @@ void InstallHandler(std::uint32_t interrupt, std::uint32_t handler) noexcept {
 
 void Unmask(std::uint32_t mask) noexcept {
     if (Memory::Contains(kInterruptMaskLoAddr, 4u)) {
-        Memory::Write32(kInterruptMaskLoAddr,
-                        Memory::Read32(kInterruptMaskLoAddr) & ~mask);
+        Memory::Write32(kInterruptMaskLoAddr, Memory::Read32(kInterruptMaskLoAddr) & ~mask);
     }
 }
 
@@ -91,9 +90,7 @@ extern "C" void mkw_switch_hle_gx_init(CpuContext* cpu) noexcept {
     InstallHandler(0x11u, 0x8016C668u);
     Unmask(0x4000u);
     if (Memory::Contains(kGxCurrentThreadAddr, 4u)) {
-        const std::uint32_t current = Memory::Contains(kRunningContextAddr, 4u)
-            ? Memory::Read32(kRunningContextAddr)
-            : 0u;
+        const std::uint32_t current = Memory::Contains(kRunningContextAddr, 4u) ? Memory::Read32(kRunningContextAddr) : 0u;
         Memory::Write32(kGxCurrentThreadAddr, current);
     }
     if (Memory::Contains(kGxThreadQueueAddr, 4u)) {
@@ -120,8 +117,7 @@ extern "C" void mkw_switch_hle_gx_init(CpuContext* cpu) noexcept {
         return;
     }
 
-    Memory::Write16(kGxDataAddr + 0x0Au,
-                    static_cast<std::uint16_t>(Memory::Read16(kGxDataAddr + 0x0Au) | 0x000Fu));
+    Memory::Write16(kGxDataAddr + 0x0Au, static_cast<std::uint16_t>(Memory::Read16(kGxDataAddr + 0x0Au) | 0x000Fu));
     Memory::Write32(kGxDataAddr + 0x254u, 0u);
     Memory::Write32(kGxDataAddr + 0x174u, 0x0F0000FFu);
     Memory::Write32(kGxDataAddr + 0x07Cu, 0x22000000u);

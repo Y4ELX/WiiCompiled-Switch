@@ -165,6 +165,18 @@ extern "C" void mkw_switch_hle_vi_flush(CpuContext* cpu) noexcept {
     }
 }
 
+extern "C" void mkw_switch_hle_vi_set_post_retrace_callback(CpuContext* cpu) noexcept {
+    if (!cpu) {
+        return;
+    }
+
+    const std::uint32_t newCallback = cpu->gpr[3];
+    mkw_switch_hle_vi_init(cpu);
+    const std::uint32_t previousCallback = Read32IfMapped(kViPostRetraceCallbackAddr);
+    Write32IfMapped(kViPostRetraceCallbackAddr, newCallback);
+    cpu->gpr[3] = previousCallback;
+}
+
 extern "C" void mkw_switch_hle_vi_wait_for_retrace(CpuContext* cpu) noexcept {
     if (!cpu) {
         return;

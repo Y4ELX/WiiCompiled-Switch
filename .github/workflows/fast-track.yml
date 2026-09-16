@@ -2,6 +2,8 @@ name: fast-track-startup
 
 on:
   push:
+    branches-ignore:
+      - main
   pull_request:
 
 jobs:

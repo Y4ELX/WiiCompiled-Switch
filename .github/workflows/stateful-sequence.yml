@@ -2,6 +2,8 @@ name: stateful-translated-sequence
 
 on:
   push:
+    branches-ignore:
+      - main
   pull_request:
 
 jobs:
